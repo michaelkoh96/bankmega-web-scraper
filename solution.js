@@ -21,19 +21,18 @@ function loadAllCategory(){
 function loadPromoDetail(detailURL){
 	return axios.get( detailURL)
 	.then((resp) => {
-		let detail =  $('.keteranganinside img' , resp.data).attr('src')
-		let area =  $('#contentpromolain2 .area b' , resp.data).text()
-		let insideTitle =  $('.titleinside h3' , resp.data).text()
-		let period =  $('.periode b' , resp.data).map( (_ , elm) => elm).text()
-
 		return {
-			det : detail,
-			ar : area,
-			title : insideTitle,
-			per : period
+			det : $('.keteranganinside img' , resp.data).attr('src'),
+			ar : $('#contentpromolain2 .area b' , resp.data).text(),
+			title : $('.titleinside h3' , resp.data).text(),
+			per : $('.periode b' , resp.data).map( (_ , elm) => elm).text()
 		}
 	})
 	.catch(err => Promise.reject(new Error(err)))
+}
+
+async function loadNextPages(){
+
 }
 
 async function loadPromoPerCategory(catID , promoCategory){
@@ -48,23 +47,56 @@ async function loadPromoPerCategory(catID , promoCategory){
 	.click(selectedID)
 	.wait(CLICK_DELAY)
 	.evaluate( () => {
-		return document.querySelector('#promolain').innerHTML
+		return {
+			promoHTML : document.querySelector('#promolain').innerHTML,
+			pagesHTML : document.querySelector('#contentpromolain2').innerHTML
+		} 
 	})
-	.then(res => {
+	.then(async res => {
 		let promos = []
-		$('img' , res).map( (_ , elm) => {
-			promos.push({
-				title : elm.attribs.title,
-				promo_category : catID,
-				image_url :`https://www.bankmega.com/${elm.attribs.src}`,
-				promo_detail_url :`https://www.bankmega.com/${elm.parent.attribs.href}` 
-			})
+		let nextPages = []
+		$('.page_promo_lain' , res.pagesHTML).map( (_ , elm) => {
+			nextPages.push( elm.attribs )
 		})
+
+		nextPages.pop()
+		nextPages.shift()
+
+		var currentPage = 0 
+		var lastPage = nextPages.length - 1
+
+		// Loop from page 1 to final page
+		while (currentPage <= lastPage){
+			await nightmare
+			.click(`a[page="${nextPages[currentPage].page}"]`)
+			.wait(CLICK_DELAY)
+			.evaluate(() => {
+				return {
+					promoHTML : document.querySelector('#promolain').innerHTML,
+					pagesHTML : document.querySelector('#contentpromolain2').innerHTML
+				} 
+			})
+			.then( res => {
+				console.log(`Currently scraping on category ${promoCategory} , page : ${currentPage + 1}`)
+				$('img' , res.promoHTML).map( (_ , elm) => {
+					promos.push({
+						title : elm.attribs.title,
+						promo_category : catID,
+						image_url :`https://www.bankmega.com/${elm.attribs.src}`,
+						promo_detail_url :`https://www.bankmega.com/${elm.parent.attribs.href}` 
+					})
+				})
+			})
+			.catch(err => {
+				console.log('ERR : ' + err)
+			})
+			currentPage++
+		}
 		resObj[promoCategory] = promos
 		return resObj
 	})
 	.then(async res => {
-		let details = [] , area = ""
+		let details = []
 		for(let j of res[promoCategory]){
 			details.push( loadPromoDetail(j.promo_detail_url))
 		}
@@ -85,7 +117,7 @@ async function loadPromoPerCategory(catID , promoCategory){
  async function startScraping(){
 	return loadAllCategory()
 	.then(res => {
-		console.log('Scraping in process...')
+		console.log('Scraping in process, please wait')
 		let promiseArr = []
 		for (let i = 0; i < res.length ; i++){
 			promiseArr.push(loadPromoPerCategory(res[i].id , res[i].title))
@@ -100,7 +132,7 @@ async function loadPromoPerCategory(catID , promoCategory){
 				if (!err){
 					
 				}
-				console.log('Scraping done ! solution.json file has been created')
+				console.log('\n \nScraping done ! solution.json file has been created')
 			})
 		})
 	})
