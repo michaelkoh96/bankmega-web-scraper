@@ -31,10 +31,6 @@ function loadPromoDetail(detailURL){
 	.catch(err => Promise.reject(new Error(err)))
 }
 
-async function loadNextPages(){
-
-}
-
 async function loadPromoPerCategory(catID , promoCategory){
 	const nightmare = new Nightmare({show : false})
 	let selectedID = `#` + catID
